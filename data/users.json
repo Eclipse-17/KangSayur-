@@ -1,0 +1,17 @@
+[
+  {
+    "username": "Admin",
+    "role": "admin",
+    "password": "12345678"
+  },
+  {
+    "username": "Petugas",
+    "role": "petugas-stok",
+    "password": "petugas123"
+  },
+  {
+    "username": "Kasir",
+    "role": "kasir",
+    "password": "kasir123"
+  }
+]

@@ -1,0 +1,89 @@
+/* Copied and adapted styles for public css */
+:root{ --container-width:1400px; }
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  background: linear-gradient(180deg, #f6fff4, #eef9f0);
+}
+
+/* New layout for login card */
+.site-header {
+  background: linear-gradient(180deg, #165f2f, #114b25);
+  color: #fff;
+  padding: 36px 20px 72px;
+  text-align: center;
+}
+
+
+.header-inner { max-width: var(--container-width); margin: 0 auto; }
+.logo-icons { font-size: 30px; margin-bottom: 6px; }
+.brand { font-size: 28px; font-weight: 700; margin: 0; }
+.brand span { color: #7ddc7a; }
+
+.center-wrap { display: flex; justify-content: center; margin-top: -48px; padding: 0 20px 40px; }
+
+.login-card { width: 100%; max-width: var(--container-width); background: #fff; border-radius: 18px; box-shadow: 0 10px 30px rgba(16,24,16,0.08); overflow: hidden; }
+.login-card-body { padding: 34px 40px; }
+.login-card h2 { font-size: 20px; margin-bottom: 6px; color: #222; }
+.subtitle { color: #6f6f6f; font-size: 13px; margin-bottom: 18px; }
+
+.role-tabs { display: flex; gap: 12px; margin-bottom: 20px; }
+.role-tab { border: none; padding: 10px 18px; border-radius: 8px; background: #eaf8ec; color: #1e6d39; font-weight: 700; cursor: pointer; }
+.role-tab.active { background: #1e6d39; color: #fff; }
+
+.login-form { display: grid; gap: 14px; }
+.form-group label { display:block; font-size:12px; font-weight:700; color:#455a45; margin-bottom:8px; }
+.form-group input { width:100%; height:44px; border-radius:8px; border:none; background:#f1fbf3; padding:0 14px; color:#1c1c1c; }
+
+.submit-btn { margin-top:8px; height:44px; border-radius:8px; border:none; background: linear-gradient(90deg,#1e6d39,#22a345); color:#fff; font-weight:700; cursor:pointer; width:100%; }
+
+@media (max-width: 900px) {
+  .header-inner { padding: 0 12px; }
+  .login-card-body { padding: 22px; }
+  .role-tabs { flex-wrap:wrap; }
+}
+
+/* Admin dashboard styles (public preview) */
+.dashboard-wrap { padding: 24px 30px 80px; }
+.dashboard { max-width: var(--container-width); margin: 0 auto; }
+.greeting { color: #fff; margin-bottom: 18px; }
+.greeting .hello { color: #dff6e6; margin-bottom: 6px; }
+.greeting .who { color: #fff; font-size: 28px; margin: 0 0 4px; }
+.greeting .date { color: #d9f0db; font-size: 13px; }
+
+.stats-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 18px; margin-bottom: 20px; }
+.stat { background: #fff; border-radius: 14px; padding: 18px; box-shadow: 0 10px 30px rgba(16,24,16,0.06); display:flex; flex-direction:column; justify-content:center; }
+.stat-icon { font-size: 22px; margin-bottom:6px; }
+.stat-value { font-weight: 800; font-size: 26px; color:#15381f; margin-top: 4px; }
+.stat-label { color: #6b6b6b; font-size: 13px; margin-top: 8px; }
+
+.section-title { margin: 10px 0; color: #1d3b28; }
+.menu-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; }
+.menu-card { background:#f6fff7; border-radius: 14px; padding: 18px; text-align:center; font-weight:700; color:#1e6d39; min-height:72px; display:flex; align-items:center; justify-content:center; box-shadow: 0 6px 18px rgba(16,24,16,0.03); }
+
+.role-badge { background:#1e6d39; color:#fff; font-size:12px; padding:4px 8px; border-radius:10px; margin-left:8px; font-weight:700; }
+
+/* Logout button (top-right inside header) */
+.logout-btn { position:absolute; right:22px; top:22px; background: rgba(255,255,255,0.08); border:none; color:#fff; font-size:16px; padding:10px; border-radius:10px; cursor:pointer; }
+
+/* Bottom navigation */
+.bottom-nav { position:fixed; left:0; right:0; bottom:12px; max-width:var(--container-width); margin:0 auto; display:flex; gap:8px; padding:8px; justify-content:space-between; background:#fff; border-radius:14px; box-shadow:0 6px 18px rgba(16,24,16,0.08); z-index:40; }
+.nav-item { background:transparent; border:none; padding:10px 16px; display:flex; flex-direction:column; align-items:center; gap:4px; color:#9aa; font-weight:700; cursor:pointer; }
+.nav-item span { font-size:12px; color:#6b6b6b; }
+.nav-item.active { background:transparent; color:#1e6d39; }
+
+@media (max-width: 900px) {
+  .bottom-nav { left:12px; right:12px; }
+  .stats-grid { grid-template-columns: repeat(2,1fr); }
+  .menu-grid { grid-template-columns: repeat(2,1fr); }
+}
