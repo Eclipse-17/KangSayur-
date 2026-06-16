@@ -1,0 +1,10 @@
+/* Extra UI for Kasir/Admin */
+
+.quick-hint{margin:12px 0 0;}
+.hint-card{background:#ffffff; border:1px solid rgba(30,109,57,0.10); border-radius:14px; padding:14px; box-shadow:0 10px 30px rgba(16,24,16,0.03);} 
+.hint-title{font-weight:1000; color:#1e6d39; margin-bottom:6px;}
+.hint-text{color:#356b45; font-size:13px; line-height:1.4;}
+
+/* Ensure pages using bottom nav don't hide content */
+.dashboard-wrap{padding-bottom:110px;}
+

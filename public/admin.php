@@ -6,6 +6,9 @@ include '../config/database.php';
 check_login();
 check_role('admin');
 
+$active = 'home';
+
+
 // Get dashboard statistics
 $res_jenis = $conn->query("SELECT COUNT(*) as count FROM sayuran WHERE status = 'aktif'");
 $total_jenis = ($res_jenis) ? $res_jenis->fetch_assoc()['count'] : 0;
@@ -73,11 +76,7 @@ $alert = get_alert();
     </section>
   </main>
 
-  <nav class="bottom-nav">
-    <a href="admin.php" class="nav-item active" style="text-decoration: none;">🏠<span>Home</span></a>
-    <a href="admin/sayuran.php" class="nav-item" style="text-decoration: none;">🥬<span>Produk</span></a>
-    <a href="admin/laporan_penjualan.php" class="nav-item" style="text-decoration: none;">📊<span>Laporan</span></a>
-    <a href="admin/users.php" class="nav-item" style="text-decoration: none;">👥<span>Users</span></a>
-  </nav>
+  <?php include 'admin_nav.php'; ?>
 </body>
 </html>
+
