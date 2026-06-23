@@ -28,7 +28,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // (harga_satuan untuk item diambil dari harga_perolehan batch)
         $sql = "SELECT id, jumlah_stok, harga_perolehan, tanggal_masuk
                 FROM stok_sayuran
-                WHERE sayuran_id = '$sayuran_id' AND status = 'tersedia'
+                WHERE sayuran_id = '$sayuran_id'
+                  AND status = 'tersedia'
+                  AND (tanggal_kadaluarsa IS NULL OR tanggal_kadaluarsa >= CURDATE())
                 ORDER BY tanggal_masuk ASC, id ASC
                 LIMIT 1";
         $res = $conn->query($sql);
@@ -191,7 +193,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     )");
             }
 
-            // Buat nota transaksi
+            // ====================== LAPORAN PENJUALAN (pakai FIFO cost) ======================
+            // Kita insert/upsert ke tabel laporan_penjualan berdasarkan item yang terjual.
+            // keuntungan = (harga_jual - harga_fifo_cost) * qty, fifo_cost diambil dari harga_satuan (harga_perolehan batch) yang sudah kita hitung di items_to_insert.
+            $tanggal_laporan = date('Y-m-d');
+            $kasir_id = (int)$kasir_id;
+
+            // Ambil harga jual per sayuran sekali untuk efisiensi
+            $sayuran_ids = [];
+            foreach ($items_to_insert as $it) {
+                $sayuran_ids[(int)$it['sayuran_id']] = true;
+            }
+            $sayuran_ids_list = implode(',', array_keys($sayuran_ids));
+
+            $harga_jual_map = [];
+            if (!empty($sayuran_ids_list)) {
+                $q_hj = $conn->query("SELECT id, harga_jual FROM sayuran WHERE id IN ($sayuran_ids_list)");
+                if ($q_hj) {
+                    while ($row = $q_hj->fetch_assoc()) {
+                        $harga_jual_map[(int)$row['id']] = (float)$row['harga_jual'];
+                    }
+                }
+            }
+
+            foreach ($items_to_insert as $it) {
+                $sayuran_id = (int)$it['sayuran_id'];
+                $qty = (float)$it['jumlah_beli'];
+                $harga_fifo_cost = (float)$it['harga_satuan'];
+
+                $harga_jual = $harga_jual_map[$sayuran_id] ?? 0.0;
+                $total_penjualan_item = $qty * $harga_jual; // total penjualan pakai harga jual standar
+                $keuntungan_item = $qty * ($harga_jual - $harga_fifo_cost);
+                if ($keuntungan_item < 0) $keuntungan_item = 0.0;
+
+                // Upsert laporan_penjualan untuk (tanggal, sayuran, kasir)
+                $check = $conn->query("SELECT id FROM laporan_penjualan
+                                        WHERE tanggal_laporan = '$tanggal_laporan'
+                                          AND sayuran_id = '$sayuran_id'
+                                          AND kasir_id = '$kasir_id'
+                                        LIMIT 1");
+
+                if ($check && $check->num_rows > 0) {
+                    $upd = $check->fetch_assoc();
+                    $conn->query("UPDATE laporan_penjualan
+                                   SET jumlah_terjual = jumlah_terjual + '$qty',
+                                       total_penjualan = total_penjualan + '$total_penjualan_item',
+                                       keuntungan = COALESCE(keuntungan,0) + '$keuntungan_item'
+                                   WHERE id = '{$upd['id']}'");
+                } else {
+                    $conn->query("INSERT INTO laporan_penjualan
+                        (tanggal_laporan, sayuran_id, jumlah_terjual, total_penjualan, keuntungan, kasir_id, created_at)
+                        VALUES
+                        ('$tanggal_laporan', '$sayuran_id', '$qty', '$total_penjualan_item', '$keuntungan_item', '$kasir_id', NOW())");
+                }
+            }
+
+            // ====================== BUAT NOTA TRANSAKSI ======================
             $nomor_nota = generate_kode('NOTA', 'nota_transaksi', 'nomor_nota');
 
             $items_detail = [];

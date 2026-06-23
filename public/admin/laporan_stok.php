@@ -7,7 +7,12 @@ check_role('admin');
 
 // Get filter parameter
 $bulan = escape_string($_GET['bulan'] ?? date('m'));
-$tahun = escape_string($_GET['tahun'] ?? date('Y'));
+$tahun = (int)($_GET['tahun'] ?? date('Y'));
+
+// Normalisasi bulan jadi 2 digit
+if (strlen($bulan) === 1) {
+    $bulan = '0' . $bulan;
+}
 
 // Get laporan stok
 $query = "SELECT ls.*, s.nama_sayuran, k.nama_kategori FROM laporan_stok ls
@@ -21,8 +26,8 @@ $laparans = $conn->query($query);
 // Get summary
 $summary = $conn->query("SELECT 
                         COUNT(DISTINCT ls.sayuran_id) as total_produk,
-                        SUM(ls.stok_akhir) as total_stok_akhir,
-                        SUM(ls.nilai_stok) as nilai_stok
+                        COALESCE(SUM(ls.stok_akhir),0) as total_stok_akhir,
+                        COALESCE(SUM(ls.nilai_stok),0) as nilai_stok
                         FROM laporan_stok ls
                         WHERE MONTH(ls.tanggal_laporan) = '$bulan' AND YEAR(ls.tanggal_laporan) = '$tahun'")->fetch_assoc();
 
@@ -202,10 +207,12 @@ for ($y = date('Y') - 5; $y <= date('Y'); $y++) {
 <body>
     <div class="container">
         <a href="../admin.php" class="back-link">← Kembali ke Dashboard</a>
+        <?php include '../admin_nav.php'; ?>
         
         <div class="header">
             <h1>📦 Laporan Stok</h1>
         </div>
+
         
         <!-- Filter -->
         <form method="GET" class="filter-section">

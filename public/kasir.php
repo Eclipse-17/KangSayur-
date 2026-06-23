@@ -118,6 +118,7 @@ $hariIni = date('l, j F Y');
 
                 <a href="kasir/riwayat_transaksi.php" class="block">
                     <div class="bg-white hover:bg-emerald-50 border border-emerald-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 flex sm:flex-col items-center sm:justify-center text-left sm:text-center gap-4 group">
+
                         <div class="p-3 bg-amber-100 rounded-xl group-hover:bg-amber-200 text-amber-700 transition-colors">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -175,7 +176,8 @@ $hariIni = date('l, j F Y');
                 <span class="text-[11px]">Penjualan</span>
             </a>
 
-            <a href="kasir/riwayat_transaksi.php" class="flex flex-col items-center space-y-1 text-gray-400 hover:text-emerald-600 transition-colors font-medium">
+                <a href="kasir/riwayat_transaksi.php" class="flex flex-col items-center space-y-1 text-gray-400 hover:text-emerald-600 transition-colors font-medium">
+
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-.621-.504-1.125-1.125-1.125H9.75M9.663 5.485a1 1 0 01.464-.175 48.664 48.664 0 018.686 0 1 1 0 01.464.175m-10.076 0L9.34 5.09a2.25 2.25 0 011.831-2.445 48.294 48.294 0 017.054 0 2.25 2.25 0 011.83.244l.43.33M9.663 5.485a4.935 4.935 0 01A4.924 4.924 0 0112 3.75c1.233 0 2.37.45 3.245 1.19m-4.522 13.91l-2.117 2.117a1.625 1.625 0 01-2.3-2.3l2.117-2.117m2.117 2.117a1.625 1.625 0 002.3-2.3l-2.117-2.117m0 4.417v-4.417m0 0a1.625 1.625 0 012.3-2.3l2.117 2.117m-6.717 0a1.625 1.625 0 012.3-2.3l2.117 2.117" />
                 </svg>

@@ -1,10 +1,17 @@
-# TODO - KangSayur (Kasir FIFO)
+# TODO - KangSayur (Admin laporan tidak tampil)
 
-- [x] Update `public/kasir.php` agar menu mengarah ke halaman kasir: penjualan_baru, riwayat_transaksi, cetak_struk + nav bawah.
+- [x] Identifikasi sumber masalah: admin hanya membaca `laporan_penjualan` & `laporan_stok`, namun kasir/petugas belum mengisi tabel tersebut.
+- [x] Update `public/kasir/penjualan_baru.php`: setelah checkout sukses, buat/akumulasi baris ke `laporan_penjualan` menggunakan FIFO cost (`harga_satuan` batch) untuk menghitung `keuntungan`.
+- [ ] Update `public/petugas/input_stok.php`: buat/akumulasi baris ke `laporan_stok` saat stok masuk.
+- [ ] Update `public/petugas/update_stok.php`: buat/akumulasi baris ke `laporan_stok` saat pengurangan/rusak/penyesuaian.
+- [ ] Uji:
+  - [ ] Checkout kasir muncul di `public/admin/laporan_penjualan.php`
+  - [ ] Input stok petugas muncul di `public/admin/laporan_stok.php`
 
-- [ ] Buat `public/kasir/penjualan_baru.php` (form tambah item, simpan transaksi, FIFO stok, buat detail_transaksi_penjualan + nota_transaksi).
-- [ ] Buat `public/kasir/riwayat_transaksi.php` (list transaksi kasir login).
-- [ ] Buat `public/kasir/cetak_struk.php` (render struk berdasarkan transaksi_id).
-- [ ] Verifikasi integritas FIFO: batch stok_sayuran terpakai berurutan tanggal_masuk ASC, status batch jadi habis bila habis.
-- [ ] Uji end-to-end: login kasir → buat transaksi → cek stok berkurang → cek riwayat → cetak struk.
+- [x] Perbaiki `public/admin/laporan_penjualan.php` & `public/admin/laporan_stok.php` agar filter bulan/tahun cocok dan summary null tidak bikin kosong.
+- [x] Buat riwayat admin: `public/admin/riwayat.php` dan link dari `public/admin.php`.
+- [x] Buat riwayat petugas: `public/petugas/riwayat.php` dan tombol dari `public/petugas.php`.
+- [x] Buat riwayat kasir: `public/kasir/riwayat_login.php`.
+
+- [x] Fix bug monitoring stok menipis: `public/petugas/stok_menipis.php` tidak lagi bergantung pada tabel `monitoring_stok_menipis`, tetapi hitung langsung dari `stok_sayuran`.
 

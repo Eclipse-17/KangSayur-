@@ -6,6 +6,36 @@ include '../config/database.php';
 check_login();
 check_role('petugas_stok');
 
+// Ambil stok tersedia saat ini langsung dari tabel stok_sayuran (menghindari beda sinkronisasi dengan monitoring_stok_menipis)
+$query = "SELECT 
+            s.id,
+            s.kode_sayuran,
+            s.nama_sayuran,
+            k.nama_kategori,
+            s.stok_minimum,
+            COALESCE(SUM(st.jumlah_stok),0) as stok_saat_ini
+         FROM sayuran s
+         JOIN kategori_sayuran k ON k.id = s.kategori_id
+         LEFT JOIN stok_sayuran st ON st.sayuran_id = s.id AND st.status = 'tersedia'
+         WHERE s.status = 'aktif'
+         GROUP BY s.id, s.kode_sayuran, s.nama_sayuran, k.nama_kategori, s.stok_minimum
+         HAVING COALESCE(SUM(st.jumlah_stok),0) <= s.stok_minimum
+         ORDER BY (COALESCE(SUM(st.jumlah_stok),0)) ASC";
+
+$alerts = $conn->query($query);
+
+// summary
+$total_habis = 0;
+$total_menipis = 0;
+if ($alerts) {
+    while ($row = $alerts->fetch_assoc()) {
+        $stok_ini = (float)$row['stok_saat_ini'];
+        if ($stok_ini <= 0) $total_habis++; else $total_menipis++;
+    }
+    // reset result cursor: re-run query
+    $alerts = $conn->query($query);
+}
+
 // Get dashboard statistics
 $res_produk = $conn->query("SELECT COUNT(*) as count FROM sayuran WHERE status = 'aktif'");
 $total_produk = ($res_produk) ? $res_produk->fetch_assoc()['count'] : 0;
@@ -21,6 +51,7 @@ $stok_menipis = ($res_menipis) ? $res_menipis->fetch_assoc()['count'] : 0;
 
 $alert = get_alert();
 ?>
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -58,7 +89,7 @@ $alert = get_alert();
         <div class="stat"> <div class="stat-icon">🥬</div> <div class="stat-value"><?php echo $total_produk; ?></div> <div class="stat-label">Total Produk</div> </div>
         <div class="stat"> <div class="stat-icon">📦</div> <div class="stat-value"><?php echo $total_stok; ?></div> <div class="stat-label">Total Stok</div> </div>
         <div class="stat"> <div class="stat-icon">📥</div> <div class="stat-value"><?php echo $stok_masuk_bulan; ?></div> <div class="stat-label">Stok Masuk Bulan Ini</div> </div>
-        <div class="stat"> <div class="stat-icon">⚠️</div> <div class="stat-value"><?php echo $stok_menipis; ?></div> <div class="stat-label">Stok Menipis/Habis</div> </div>
+        <div class="stat"> <div class="stat-icon">⚠️</div> <div class="stat-value"><?php echo (int)$total_menipis; ?></div> <div class="stat-label">Stok Menipis/Habis</div> </div>
       </div>
 
       <h3 class="section-title">Kelola Stok</h3>
@@ -67,6 +98,7 @@ $alert = get_alert();
         <a href="petugas/input_stok.php" style="text-decoration: none;"><div class="menu-card">📥 Input Stok</div></a>
         <a href="petugas/update_stok.php" style="text-decoration: none;"><div class="menu-card">✏️ Update Stok</div></a>
         <a href="petugas/stok_menipis.php" style="text-decoration: none;"><div class="menu-card">⚠️ Stok Menipis</div></a>
+        <a href="petugas/riwayat.php" style="text-decoration: none;"><div class="menu-card">🕘 Riwayat</div></a>
       </div>
     </section>
   </main>

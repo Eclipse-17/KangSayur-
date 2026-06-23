@@ -289,6 +289,7 @@ $kategoris = $conn->query("SELECT * FROM kategori_sayuran ORDER BY id DESC");
 </head>
 <body>
     <div class="container">
+        <a href="../admin.php" class="back-link">← Kembali ke Dashboard</a>
         <?php if ($alert): ?>
             <div class="alert <?php echo $alert['type']; ?>">
                 <?php echo $alert['message']; ?>

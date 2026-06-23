@@ -20,51 +20,121 @@ if (isset($_GET['id'])) {
 
 // Process update stok
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $sayuran_id = escape_string($_POST['sayuran_id']);
-    $tipe_update = escape_string($_POST['tipe_update']);
-    $jumlah_perubahan = escape_string($_POST['jumlah_perubahan']);
-    $alasan = escape_string($_POST['alasan']);
-    
-    // Get current stok
-    $current = $conn->query("SELECT SUM(jumlah_stok) as total FROM stok_sayuran WHERE sayuran_id = '$sayuran_id' AND status = 'tersedia'");
-    $stok_awal = $current->fetch_assoc()['total'] ?? 0;
-    
-    // Calculate new stok
-    $stok_akhir = $stok_awal;
-    if ($tipe_update == 'penambahan') {
-        $stok_akhir = $stok_awal + $jumlah_perubahan;
-    } elseif ($tipe_update == 'pengurangan' || $tipe_update == 'rusak') {
-        $stok_akhir = $stok_awal - $jumlah_perubahan;
-    }
-    
-    // Insert ke update_stok_barang
-    $query = "INSERT INTO update_stok_barang 
-             (sayuran_id, petugas_id, tipe_update, jumlah_awal, jumlah_perubahan, jumlah_akhir, alasan, tanggal_update)
-             VALUES ('$sayuran_id', '$petugas_id', '$tipe_update', '$stok_awal', '$jumlah_perubahan', '$stok_akhir', '$alasan', NOW())";
-    
-    if ($conn->query($query)) {
-        // Update stok_sayuran based on tipe_update
-        if ($tipe_update == 'rusak') {
-            // Kurangi stok dari batch paling tua (FIFO)
-            $stok_rusak = $conn->query("SELECT id, jumlah_stok FROM stok_sayuran WHERE sayuran_id = '$sayuran_id' AND status = 'tersedia' ORDER BY tanggal_masuk ASC LIMIT 1");
-            
-            if ($stok_rusak->num_rows > 0) {
-                $batch = $stok_rusak->fetch_assoc();
-                $sisa = $batch['jumlah_stok'] - $jumlah_perubahan;
-                
-                if ($sisa <= 0) {
-                    $conn->query("UPDATE stok_sayuran SET status = 'habis' WHERE id = '{$batch['id']}'");
-                } else {
-                    $conn->query("UPDATE stok_sayuran SET jumlah_stok = '$sisa' WHERE id = '{$batch['id']}'");
-                }
-            }
-        }
-        
-        set_alert("Stok berhasil diperbarui", 'success');
+    $sayuran_id = (int)($_POST['sayuran_id'] ?? 0);
+    $tipe_update = escape_string($_POST['tipe_update'] ?? '');
+    $jumlah_perubahan = (float)($_POST['jumlah_perubahan'] ?? 0);
+    $alasan = escape_string($_POST['alasan'] ?? '');
+
+    if ($sayuran_id <= 0 || $jumlah_perubahan <= 0 || empty($tipe_update) || empty($alasan)) {
+        set_alert('Data update stok tidak valid.', 'error');
         header('Location: daftar_stok.php');
         exit;
-    } else {
-        set_alert("Error: " . $conn->error, 'error');
+    }
+
+    $tanggal_update = date('Y-m-d');
+
+    // Get current stok (sebelum perubahan)
+    $current = $conn->query("SELECT COALESCE(SUM(jumlah_stok),0) as total FROM stok_sayuran WHERE sayuran_id = '$sayuran_id' AND status = 'tersedia'");
+    $stok_awal = (float)($current ? ($current->fetch_assoc()['total'] ?? 0) : 0);
+
+    // Calculate new stok + kategori perubahan
+    $stok_akhir = $stok_awal;
+    $stok_masuk = 0.0;
+    $stok_keluar = 0.0;
+    $stok_rusak = 0.0;
+
+    if ($tipe_update == 'penambahan') {
+        $stok_akhir = $stok_awal + $jumlah_perubahan;
+        $stok_masuk = $jumlah_perubahan;
+    } elseif ($tipe_update == 'pengurangan') {
+        $stok_akhir = $stok_awal - $jumlah_perubahan;
+        $stok_keluar = $jumlah_perubahan;
+    } elseif ($tipe_update == 'rusak') {
+        $stok_akhir = $stok_awal - $jumlah_perubahan;
+        $stok_rusak = $jumlah_perubahan;
+        $stok_keluar = $jumlah_perubahan;
+    } elseif ($tipe_update == 'penyesuaian') {
+        // Minimal: treat sebagai pengurangan untuk report
+        $stok_akhir = $stok_awal - $jumlah_perubahan;
+        $stok_keluar = $jumlah_perubahan;
+    }
+
+    if ($stok_akhir < 0) $stok_akhir = 0;
+
+    // Nilai stok pakai harga_beli (nilai stok agregat)
+    $hbq = $conn->query("SELECT harga_beli FROM sayuran WHERE id = '$sayuran_id' LIMIT 1");
+    $harga_beli = (float)($hbq && $hbq->num_rows > 0 ? ($hbq->fetch_assoc()['harga_beli'] ?? 0) : 0);
+    $nilai_stok = $stok_akhir * $harga_beli;
+
+    // Transaksi agar sinkron
+    $conn->begin_transaction();
+    try {
+        // Insert ke update_stok_barang
+        $query = "INSERT INTO update_stok_barang 
+                 (sayuran_id, petugas_id, tipe_update, jumlah_awal, jumlah_perubahan, jumlah_akhir, alasan, tanggal_update)
+                 VALUES ('$sayuran_id', '$petugas_id', '$tipe_update', '$stok_awal', '$jumlah_perubahan', '$stok_akhir', '$alasan', NOW())";
+
+        if (!$conn->query($query)) {
+            throw new Exception('Error: ' . $conn->error);
+        }
+
+        // Update stok_sayuran based on tipe_update (yang mengubah stok batch)
+        if ($tipe_update == 'rusak' || $tipe_update == 'pengurangan' || $tipe_update == 'penyesuaian') {
+            // Kurangi stok dari batch paling tua (FIFO)
+            $remaining = (float)$jumlah_perubahan;
+            while ($remaining > 0.000001) {
+                $stok_rusak = $conn->query("SELECT id, jumlah_stok FROM stok_sayuran WHERE sayuran_id = '$sayuran_id' AND status = 'tersedia' ORDER BY tanggal_masuk ASC LIMIT 1");
+                if (!$stok_rusak || $stok_rusak->num_rows === 0) break;
+
+                $batch = $stok_rusak->fetch_assoc();
+                $batch_id = (int)$batch['id'];
+                $batch_stok = (float)$batch['jumlah_stok'];
+                $ambil = min($remaining, $batch_stok);
+                if ($ambil <= 0) break;
+
+                $sisa = $batch_stok - $ambil;
+                if ($sisa <= 0) {
+                    $conn->query("UPDATE stok_sayuran SET jumlah_stok = 0, status = 'habis' WHERE id = '$batch_id'");
+                } else {
+                    $conn->query("UPDATE stok_sayuran SET jumlah_stok = '$sisa' WHERE id = '$batch_id'");
+                }
+
+                $remaining -= $ambil;
+            }
+        } elseif ($tipe_update == 'penambahan') {
+            // penambahan stok via update_stok: tidak ada batch insert di versi lama.
+            // Agar laporan tidak kosong, minimal buat satu batch baru dengan batch_number = (id update_stok_barang)
+            $batch_no = 'UPD' . $conn->insert_id;
+            $conn->query("INSERT INTO stok_sayuran (sayuran_id, batch_number, jumlah_stok, harga_perolehan, tanggal_masuk, tanggal_kadaluarsa, status)
+                           VALUES ('$sayuran_id', '$batch_no', '$jumlah_perubahan', '$harga_beli', '$tanggal_update', NULL, 'tersedia')");
+        }
+
+        // Upsert laporan_stok
+        $check = $conn->query("SELECT id FROM laporan_stok WHERE tanggal_laporan = '$tanggal_update' AND sayuran_id = '$sayuran_id' LIMIT 1");
+        if ($check && $check->num_rows > 0) {
+            $row = $check->fetch_assoc();
+            $conn->query("UPDATE laporan_stok
+                SET stok_awal = '$stok_awal',
+                    stok_masuk = stok_masuk + '$stok_masuk',
+                    stok_keluar = stok_keluar + '$stok_keluar',
+                    stok_rusak = stok_rusak + '$stok_rusak',
+                    stok_akhir = '$stok_akhir',
+                    nilai_stok = '$nilai_stok'
+                WHERE id = '{$row['id']}'");
+        } else {
+            $conn->query("INSERT INTO laporan_stok
+                (tanggal_laporan, sayuran_id, stok_awal, stok_masuk, stok_keluar, stok_rusak, stok_akhir, nilai_stok, created_at)
+                VALUES
+                ('$tanggal_update', '$sayuran_id', '$stok_awal', '$stok_masuk', '$stok_keluar', '$stok_rusak', '$stok_akhir', '$nilai_stok', NOW())");
+        }
+
+        $conn->commit();
+        set_alert('Stok berhasil diperbarui', 'success');
+        header('Location: daftar_stok.php');
+        exit;
+    } catch (Exception $e) {
+        $conn->rollback();
+        set_alert('Error: ' . $e->getMessage(), 'error');
     }
 }
 

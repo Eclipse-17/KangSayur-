@@ -1,0 +1,29 @@
+Plan implementasi laporan_stok:
+
+1) Update public/petugas/input_stok.php
+- Setelah insert ke pengelolaan_stok_masuk dan insert ke stok_sayuran sukses:
+  - hitung stok_awal = SUM(jumlah_stok) stok_sayuran untuk sayuran_id status='tersedia' sebelum insert (bisa hitung sebelum insert2)
+  - stok_masuk = jumlah_masuk (float)
+  - stok_keluar = 0, stok_rusak = 0
+  - stok_akhir = stok_awal + stok_masuk
+  - nilai_stok = stok_akhir * sayuran.harga_beli (ambil dari tabel sayuran)
+  - upsert laporan_stok pada key (tanggal_laporan=tanggal_masuk, sayuran_id)
+    - jika ada: akumulasi stok_awal tetap (atau recalc), stok_masuk +=, stok_akhir = stok_awal + total_masuk - total_keluar - total_rusak
+    - jika tidak ada: insert.
+
+2) Update public/petugas/update_stok.php
+- Setelah insert update_stok_barang dan setelah update stok_sayuran dilakukan:
+  - tentukan tipe_update:
+    - penambahan => stok_masuk
+    - pengurangan => stok_keluar
+    - rusak => stok_rusak (dan juga stok_keluar jika yang dipotong FIFO berarti keluar stok tersedia)
+    - penyesuaian => distribusi (opsi: treat as pengurangan bila stok_akhir < stok_awal else masuk)
+  - hitung stok_awal sebelum perubahan (sudah dihitung sekarang)
+  - hitung stok_akhir setelah perubahan (bisa query SUM stok tersedia)
+  - nilai_stok = stok_akhir * harga_beli
+  - upsert laporan_stok untuk (tanggal_laporan=DATE(tanggal_update), sayuran_id)
+
+Catatan penting:
+- Karena laporan_stok menyimpan stok_awal & stok_akhir, kita harus konsisten dengan definisi hari tersebut.
+- Untuk minimal berfungsi, upsert per hari + sayuran dan akumulasi stok_masuk/keluar/rusak, lalu recalc stok_akhir dari SUM stok_sayuran tersedia setelah perubahan.
+

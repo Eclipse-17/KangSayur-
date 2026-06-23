@@ -12,41 +12,111 @@ $petugas_id = $_SESSION['user_id'];
 
 // Process input stok
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $sayuran_id = escape_string($_POST['sayuran_id']);
-    $jumlah_masuk = escape_string($_POST['jumlah_masuk']);
-    $harga_perolehan = escape_string($_POST['harga_perolehan']);
-    $tanggal_masuk = escape_string($_POST['tanggal_masuk']);
-    $tanggal_kadaluarsa = escape_string($_POST['tanggal_kadaluarsa']);
-    $supplier = escape_string($_POST['supplier']);
-    $catatan = escape_string($_POST['catatan']);
-    
-    // Generate nomor referensi
+    $sayuran_id = (int)($_POST['sayuran_id'] ?? 0);
+    $jumlah_masuk = (float)($_POST['jumlah_masuk'] ?? 0);
+    $harga_perolehan = (float)($_POST['harga_perolehan'] ?? 0);
+    $tanggal_masuk = escape_string($_POST['tanggal_masuk'] ?? '');
+    $tanggal_kadaluarsa = escape_string($_POST['tanggal_kadaluarsa'] ?? '');
+    $supplier = escape_string($_POST['supplier'] ?? '');
+    $catatan = escape_string($_POST['catatan'] ?? '');
+
+    if ($sayuran_id <= 0 || $jumlah_masuk <= 0 || empty($tanggal_masuk)) {
+        set_alert('Data stok masuk tidak valid.', 'error');
+        header('Location: input_stok.php');
+        exit;
+    }
+
+    // Generate nomor referensi (menjadi batch_number baru sehingga tidak menimpa batch stok yang sudah ada)
     $nomor_ref = generate_kode('PSM', 'pengelolaan_stok_masuk', 'nomor_referensi');
-    
-    // Insert ke pengelolaan_stok_masuk
-    $query = "INSERT INTO pengelolaan_stok_masuk 
-             (nomor_referensi, sayuran_id, petugas_id, jumlah_masuk, harga_perolehan, 
-              tanggal_masuk, tanggal_kadaluarsa, supplier, catatan, status)
-             VALUES ('$nomor_ref', '$sayuran_id', '$petugas_id', '$jumlah_masuk', '$harga_perolehan',
-             '$tanggal_masuk', '$tanggal_kadaluarsa', '$supplier', '$catatan', 'terima')";
-    
-    if ($conn->query($query)) {
-        // Insert ke stok_sayuran dengan batch number = nomor referensi
+
+
+    // Hitung stok_awal sebelum insert batch
+    $stok_awal_res = $conn->query("SELECT COALESCE(SUM(jumlah_stok),0) as total
+        FROM stok_sayuran
+        WHERE sayuran_id = '$sayuran_id' AND status = 'tersedia'");
+    $stok_awal = (float)(($stok_awal_res && $stok_awal_res->num_rows > 0) ? ($stok_awal_res->fetch_assoc()['total'] ?? 0) : 0);
+
+    $stok_keluar = 0;
+    $stok_rusak = 0;
+    $stok_akhir = $stok_awal + $jumlah_masuk;
+
+    // Harga perolehan dari input petugas menjadi acuan nilai stok.
+    // Selain itu, sistem menggunakan sayuran.harga_jual untuk harga jual kasir.
+    $harga_beli = (float)$harga_perolehan;
+    $nilai_stok = $stok_akhir * $harga_beli;
+
+
+    $conn->begin_transaction();
+    try {
+        // Insert ke pengelolaan_stok_masuk
+        $query = "INSERT INTO pengelolaan_stok_masuk 
+                 (nomor_referensi, sayuran_id, petugas_id, jumlah_masuk, harga_perolehan, 
+                  tanggal_masuk, tanggal_kadaluarsa, supplier, catatan, status)
+                 VALUES ('$nomor_ref', '$sayuran_id', '$petugas_id', '$jumlah_masuk', '$harga_perolehan',
+                 '$tanggal_masuk', '$tanggal_kadaluarsa', '$supplier', '$catatan', 'terima')";
+
+        if (!$conn->query($query)) {
+            throw new Exception('Error saat insert pengelolaan_stok_masuk: ' . $conn->error);
+        }
+
+        // Insert ke stok_sayuran dengan batch number = nomor referensi.
+        // Jika sudah kadaluarsa saat input, jangan jadikan stok "tersedia".
+        $is_kadaluarsa = false;
+        if (!empty($tanggal_kadaluarsa)) {
+            $tgl_kad = escape_string($tanggal_kadaluarsa);
+            $conn->query("SELECT 1 FROM dual LIMIT 1");
+            $is_kadaluarsa = ($tgl_kad < date('Y-m-d'));
+        }
+        $status_batch = $is_kadaluarsa ? 'habis' : 'tersedia';
+
         $query2 = "INSERT INTO stok_sayuran 
                   (sayuran_id, batch_number, jumlah_stok, harga_perolehan, tanggal_masuk, tanggal_kadaluarsa, status)
-                  VALUES ('$sayuran_id', '$nomor_ref', '$jumlah_masuk', '$harga_perolehan', '$tanggal_masuk', '$tanggal_kadaluarsa', 'tersedia')";
-        
-        if ($conn->query($query2)) {
-            set_alert("Stok masuk berhasil dicatat dengan nomor referensi: $nomor_ref", 'success');
-            header('Location: daftar_stok.php');
-            exit;
-        } else {
-            set_alert("Error saat insert ke stok_sayuran: " . $conn->error, 'error');
+                  VALUES ('$sayuran_id', '$nomor_ref', '$jumlah_masuk', '$harga_perolehan', '$tanggal_masuk', '$tanggal_kadaluarsa', '$status_batch')";
+
+        if (!$conn->query($query2)) {
+            throw new Exception('Error saat insert ke stok_sayuran: ' . $conn->error);
         }
-    } else {
-        set_alert("Error saat insert: " . $conn->error, 'error');
+
+        // Update harga beli/jual sayuran global berdasarkan input petugas.
+        // Harga jual = harga beli + 12000
+        $harga_beli_baru = (float)$harga_perolehan;
+        $harga_jual_baru = $harga_beli_baru + 12000;
+        $conn->query("UPDATE sayuran
+                      SET harga_beli = '$harga_beli_baru',
+                          harga_jual = '$harga_jual_baru'
+                      WHERE id = '$sayuran_id'");
+
+        // Upsert laporan_stok per (tanggal_masuk, sayuran_id)
+        $check = $conn->query("SELECT id FROM laporan_stok
+            WHERE tanggal_laporan = '$tanggal_masuk' AND sayuran_id = '$sayuran_id'
+            LIMIT 1");
+
+        if ($check && $check->num_rows > 0) {
+            $row = $check->fetch_assoc();
+            // akumulasi masuk; stok_awal & stok_akhir direcalc dengan stok tersedia setelah insert (yang sudah kita hitung: stok_awal/stok_akhir)
+            $conn->query("UPDATE laporan_stok
+                SET stok_masuk = stok_masuk + '$jumlah_masuk',
+                    stok_akhir = '$stok_akhir',
+                    nilai_stok = '$nilai_stok',
+                    stok_awal = '$stok_awal'
+                WHERE id = '{$row['id']}'");
+        } else {
+            $conn->query("INSERT INTO laporan_stok
+                (tanggal_laporan, sayuran_id, stok_awal, stok_masuk, stok_keluar, stok_rusak, stok_akhir, nilai_stok, created_at)
+                VALUES
+                ('$tanggal_masuk', '$sayuran_id', '$stok_awal', '$jumlah_masuk', '$stok_keluar', '$stok_rusak', '$stok_akhir', '$nilai_stok', NOW())");
+        }
+
+        $conn->commit();
+        set_alert("Stok masuk berhasil dicatat dengan nomor referensi: $nomor_ref", 'success');
+        header('Location: daftar_stok.php');
+        exit;
+    } catch (Exception $e) {
+        $conn->rollback();
+        set_alert($e->getMessage(), 'error');
     }
 }
+
 
 // Get all sayuran untuk select
 $sayurans = $conn->query("SELECT id, kode_sayuran, nama_sayuran FROM sayuran WHERE status = 'aktif' ORDER BY nama_sayuran ASC");

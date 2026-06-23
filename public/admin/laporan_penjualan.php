@@ -7,7 +7,12 @@ check_role('admin');
 
 // Get filter parameter
 $bulan = escape_string($_GET['bulan'] ?? date('m'));
-$tahun = escape_string($_GET['tahun'] ?? date('Y'));
+$tahun = (int)($_GET['tahun'] ?? date('Y'));
+
+// Normalisasi bulan jadi 2 digit
+if (strlen($bulan) === 1) {
+    $bulan = '0' . $bulan;
+}
 
 // Get laporan penjualan
 $query = "SELECT lp.*, s.nama_sayuran, u.nama FROM laporan_penjualan lp
@@ -20,9 +25,9 @@ $laparans = $conn->query($query);
 
 // Get summary
 $summary = $conn->query("SELECT 
-                        SUM(lp.jumlah_terjual) as total_qty,
-                        SUM(lp.total_penjualan) as total_penjualan,
-                        SUM(lp.keuntungan) as total_keuntungan
+                        COALESCE(SUM(lp.jumlah_terjual),0) as total_qty,
+                        COALESCE(SUM(lp.total_penjualan),0) as total_penjualan,
+                        COALESCE(SUM(lp.keuntungan),0) as total_keuntungan
                         FROM laporan_penjualan lp
                         WHERE MONTH(lp.tanggal_laporan) = '$bulan' AND YEAR(lp.tanggal_laporan) = '$tahun'")->fetch_assoc();
 
@@ -202,6 +207,7 @@ for ($y = date('Y') - 5; $y <= date('Y'); $y++) {
 <body>
     <div class="container">
         <a href="../admin.php" class="back-link">← Kembali ke Dashboard</a>
+        <?php include '../admin_nav.php'; ?>
         
         <div class="header">
             <h1>📊 Laporan Penjualan</h1>
