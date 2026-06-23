@@ -17,7 +17,9 @@ $query = "SELECT
             COALESCE(SUM(st.jumlah_stok),0) as stok_saat_ini
          FROM sayuran s
          JOIN kategori_sayuran k ON k.id = s.kategori_id
-         LEFT JOIN stok_sayuran st ON st.sayuran_id = s.id AND st.status = 'tersedia'
+LEFT JOIN stok_sayuran st ON st.sayuran_id = s.id
+              AND st.status = 'tersedia'
+              AND (st.tanggal_kadaluarsa IS NULL OR st.tanggal_kadaluarsa >= CURDATE())
          WHERE s.status = 'aktif'
          GROUP BY s.id, s.kode_sayuran, s.nama_sayuran, k.nama_kategori, s.stok_minimum
          HAVING COALESCE(SUM(st.jumlah_stok),0) <= s.stok_minimum

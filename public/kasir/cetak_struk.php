@@ -137,12 +137,19 @@ $conn->query($printed_query);
         <?php if (!empty($header['diskon']) && (float)$header['diskon'] > 0): ?>
             <div class="row"><div class="muted">Diskon</div><div>- <?php echo format_rupiah((float)$header['diskon']); ?></div></div>
         <?php endif; ?>
-        <div class="row total"><div>Total Bayar</div><div><?php echo format_rupiah((float)$header['total_bayar']); ?></div></div>
+        <?php
+            $cash = (float)($header['uang_pelanggan'] ?? 0);
+            $total_bayar = (float)($header['total_bayar'] ?? 0);
+            $kembalian = $cash - $total_bayar;
+        ?>
 
+
+        <div class="row total"><div>Total Belanja</div><div><?php echo format_rupiah($total_bayar); ?></div></div>
         <div class="divider"></div>
         <div class="muted" style="line-height:1.5;">
             Terima kasih atas transaksi Anda.
         </div>
+
     </div>
 </div>
 </body>

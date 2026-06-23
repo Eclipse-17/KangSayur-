@@ -383,12 +383,6 @@ $cart_items = array_values($cart);
                                 <input type="number" step="0.01" min="0" name="qty" id="qty" required />
                             </div>
                         </div>
-                        <div class="col">
-                            <div class="form-group">
-                                <label for="diskon_item">Diskon Item (opsional)</label>
-                                <input type="number" step="0.01" min="0" name="diskon_item" id="diskon_item" value="0" />
-                            </div>
-                        </div>
                     </div>
                     <div class="note-actions">
                         <button type="submit" class="btn btn-primary">+ Tambah</button>
@@ -452,10 +446,32 @@ $cart_items = array_values($cart);
                         </form>
                     </div>
 
+                    <?php
+                        // Tampilkan total belanja dari keranjang (harga FIFO per item)
+                        $total_keranjang = 0.0;
+                        foreach ($cart_items as $ci) {
+                            $total_keranjang += ((float)$ci['qty']) * ((float)$ci['harga_satuan']);
+                        }
+                    ?>
+
                     <div class="card" style="margin-top:14px; padding:16px;">
                         <h3 style="margin-top:0;">Checkout</h3>
+                        <div style="margin-bottom:12px;background:#f5f5f5;border:1px solid #eee;border-radius:10px;padding:10px 12px;">
+                            <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;">
+                                <div style="color:#333;font-weight:900;">Total Keranjang</div>
+                                <div style="color:#1b5e20;font-weight:1000;"><?php echo format_rupiah((float)$total_keranjang); ?></div>
+
+                            </div>
+                        </div>
+
+                        <script>
+                            // placeholder untuk format rupiah (PHP sudah menghitung nominal)
+                        </script>
+
                         <form method="POST" action="">
                             <input type="hidden" name="action" value="checkout" />
+                            <input type="hidden" name="total_keranjang" value="<?php echo htmlspecialchars((string)$total_keranjang); ?>" />
+
                             <div class="form-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
                                 <div class="form-group">
                                     <label>Customer (opsional)</label>
@@ -465,14 +481,8 @@ $cart_items = array_values($cart);
                                     <label>Metode Pembayaran</label>
                                     <select name="metode_pembayaran">
                                         <option value="tunai" selected>tunai</option>
-                                        <option value="debit">debit</option>
-                                        <option value="kredit">kredit</option>
                                         <option value="transfer">transfer</option>
                                     </select>
-                                </div>
-                                <div class="form-group">
-                                    <label>Diskon Transaksi (Rp)</label>
-                                    <input type="number" step="0.01" min="0" name="diskon" value="0" />
                                 </div>
                                 <div class="form-group">
                                     <label>Uang Bayar (Rp)</label>

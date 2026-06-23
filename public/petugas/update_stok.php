@@ -20,9 +20,9 @@ if (isset($_GET['id'])) {
 
 // Process update stok
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $sayuran_id = (int)($_POST['sayuran_id'] ?? 0);
+    $sayuran_id = (int) ($_POST['sayuran_id'] ?? 0);
     $tipe_update = escape_string($_POST['tipe_update'] ?? '');
-    $jumlah_perubahan = (float)($_POST['jumlah_perubahan'] ?? 0);
+    $jumlah_perubahan = (int) ($_POST['jumlah_perubahan'] ?? 0);
     $alasan = escape_string($_POST['alasan'] ?? '');
 
     if ($sayuran_id <= 0 || $jumlah_perubahan <= 0 || empty($tipe_update) || empty($alasan)) {
@@ -34,8 +34,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $tanggal_update = date('Y-m-d');
 
     // Get current stok (sebelum perubahan)
-    $current = $conn->query("SELECT COALESCE(SUM(jumlah_stok),0) as total FROM stok_sayuran WHERE sayuran_id = '$sayuran_id' AND status = 'tersedia'");
-    $stok_awal = (float)($current ? ($current->fetch_assoc()['total'] ?? 0) : 0);
+    $current = $conn->query("SELECT COALESCE(SUM(jumlah_stok),0) as total
+        FROM stok_sayuran
+        WHERE sayuran_id = '$sayuran_id'
+          AND status = 'tersedia'
+          AND (tanggal_kadaluarsa IS NULL OR tanggal_kadaluarsa >= CURDATE())");
+    if (!$current) {
+        throw new Exception('SQL error current stok: ' . $conn->error);
+    }
+    $stok_awal = (float) ($current ? ($current->fetch_assoc()['total'] ?? 0) : 0);
 
     // Calculate new stok + kategori perubahan
     $stok_akhir = $stok_awal;
@@ -59,11 +66,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stok_keluar = $jumlah_perubahan;
     }
 
-    if ($stok_akhir < 0) $stok_akhir = 0;
+    if ($stok_akhir < 0)
+        $stok_akhir = 0;
 
     // Nilai stok pakai harga_beli (nilai stok agregat)
     $hbq = $conn->query("SELECT harga_beli FROM sayuran WHERE id = '$sayuran_id' LIMIT 1");
-    $harga_beli = (float)($hbq && $hbq->num_rows > 0 ? ($hbq->fetch_assoc()['harga_beli'] ?? 0) : 0);
+    $harga_beli = (float) ($hbq && $hbq->num_rows > 0 ? ($hbq->fetch_assoc()['harga_beli'] ?? 0) : 0);
     $nilai_stok = $stok_akhir * $harga_beli;
 
     // Transaksi agar sinkron
@@ -81,16 +89,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Update stok_sayuran based on tipe_update (yang mengubah stok batch)
         if ($tipe_update == 'rusak' || $tipe_update == 'pengurangan' || $tipe_update == 'penyesuaian') {
             // Kurangi stok dari batch paling tua (FIFO)
-            $remaining = (float)$jumlah_perubahan;
+            $remaining = (float) $jumlah_perubahan;
             while ($remaining > 0.000001) {
-                $stok_rusak = $conn->query("SELECT id, jumlah_stok FROM stok_sayuran WHERE sayuran_id = '$sayuran_id' AND status = 'tersedia' ORDER BY tanggal_masuk ASC LIMIT 1");
-                if (!$stok_rusak || $stok_rusak->num_rows === 0) break;
+                // Ganti nama variabel menjadi $query_batch agar tidak menimpa variabel laporan $stok_rusak
+                $query_batch = $conn->query("SELECT id, jumlah_stok FROM stok_sayuran WHERE sayuran_id = '$sayuran_id' AND status = 'tersedia' ORDER BY tanggal_masuk ASC LIMIT 1");
+                if (!$query_batch) {
+                    throw new Exception('SQL error select batch FIFO: ' . $conn->error);
+                }
+                if ($query_batch->num_rows === 0) {
+                    // Tidak ada batch yang tersedia untuk diambil
+                    break;
+                }
 
-                $batch = $stok_rusak->fetch_assoc();
-                $batch_id = (int)$batch['id'];
-                $batch_stok = (float)$batch['jumlah_stok'];
+                $batch = $query_batch->fetch_assoc();
+                $batch_id = (int) $batch['id'];
+                $batch_stok = (float) $batch['jumlah_stok'];
                 $ambil = min($remaining, $batch_stok);
-                if ($ambil <= 0) break;
+                if ($ambil <= 0)
+                    break;
 
                 $sisa = $batch_stok - $ambil;
                 if ($sisa <= 0) {
@@ -132,9 +148,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         set_alert('Stok berhasil diperbarui', 'success');
         header('Location: daftar_stok.php');
         exit;
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
         $conn->rollback();
-        set_alert('Error: ' . $e->getMessage(), 'error');
+
+        // Ambil pesan error SQL jika ada
+        $connErr = (isset($conn->error) && $conn->error !== '') ? $conn->error : '';
+
+        // Ambil pesan error utama tanpa memaksa konversi objek database menjadi string
+        $msgDetail = ($connErr !== '') ? $connErr : $e->getMessage();
+
+        set_alert(
+            'Error: ' . $msgDetail .
+            ' (tipe_update=' . ($tipe_update ?? '') .
+            ', sayuran_id=' . ($sayuran_id ?? '') .
+            ', jumlah_perubahan=' . ($jumlah_perubahan ?? '') . ')',
+            'error'
+        );
     }
 }
 
@@ -143,6 +172,7 @@ $sayurans = $conn->query("SELECT id, kode_sayuran, nama_sayuran FROM sayuran WHE
 ?>
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -154,34 +184,34 @@ $sayurans = $conn->query("SELECT id, kode_sayuran, nama_sayuran FROM sayuran WHE
             margin: 20px auto;
             padding: 0 20px;
         }
-        
+
         .header {
             margin-bottom: 20px;
         }
-        
+
         .header h1 {
             margin: 0 0 15px 0;
             color: #333;
         }
-        
+
         .form-container {
             background: white;
             border: 1px solid #ddd;
             border-radius: 8px;
             padding: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
-        
+
         .form-row {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 15px;
         }
-        
+
         .form-group {
             margin-bottom: 15px;
         }
-        
+
         .form-group label {
             display: block;
             margin-bottom: 5px;
@@ -189,7 +219,7 @@ $sayurans = $conn->query("SELECT id, kode_sayuran, nama_sayuran FROM sayuran WHE
             color: #333;
             font-size: 14px;
         }
-        
+
         .form-group input,
         .form-group select,
         .form-group textarea {
@@ -201,7 +231,7 @@ $sayurans = $conn->query("SELECT id, kode_sayuran, nama_sayuran FROM sayuran WHE
             font-family: inherit;
             font-size: 14px;
         }
-        
+
         .form-group input:focus,
         .form-group select:focus,
         .form-group textarea:focus {
@@ -209,13 +239,13 @@ $sayurans = $conn->query("SELECT id, kode_sayuran, nama_sayuran FROM sayuran WHE
             border-color: #4CAF50;
             box-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
         }
-        
+
         .form-actions {
             display: flex;
             gap: 10px;
             margin-top: 20px;
         }
-        
+
         .btn {
             padding: 10px 20px;
             border: none;
@@ -224,54 +254,54 @@ $sayurans = $conn->query("SELECT id, kode_sayuran, nama_sayuran FROM sayuran WHE
             font-weight: bold;
             font-size: 14px;
         }
-        
+
         .btn-primary {
             background: #4CAF50;
             color: white;
         }
-        
+
         .btn-primary:hover {
             background: #45a049;
         }
-        
+
         .btn-secondary {
             background: #6c757d;
             color: white;
         }
-        
+
         .btn-secondary:hover {
             background: #5a6268;
         }
-        
+
         .back-link {
             display: inline-block;
             margin-bottom: 20px;
             color: #2196F3;
             text-decoration: none;
         }
-        
+
         .back-link:hover {
             text-decoration: underline;
         }
-        
+
         .alert {
             padding: 15px;
             border-radius: 4px;
             margin-bottom: 20px;
         }
-        
+
         .alert.success {
             background: #d4edda;
             color: #155724;
             border: 1px solid #c3e6cb;
         }
-        
+
         .alert.error {
             background: #f8d7da;
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
-        
+
         .info-box {
             background: #fff3cd;
             border-left: 4px solid #ffc107;
@@ -279,7 +309,7 @@ $sayurans = $conn->query("SELECT id, kode_sayuran, nama_sayuran FROM sayuran WHE
             margin-bottom: 20px;
             border-radius: 4px;
         }
-        
+
         .info-box p {
             margin: 0;
             color: #856404;
@@ -287,24 +317,25 @@ $sayurans = $conn->query("SELECT id, kode_sayuran, nama_sayuran FROM sayuran WHE
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <a href="../petugas.php" class="back-link">← Kembali ke Dashboard</a>
-        
+
         <div class="header">
             <h1>✏️ Update Stok Barang</h1>
         </div>
-        
+
         <?php if ($alert): ?>
             <div class="alert <?php echo $alert['type']; ?>">
                 <?php echo $alert['message']; ?>
             </div>
         <?php endif; ?>
-        
+
         <div class="info-box">
             <p>📌 Pencatatan perubahan stok untuk penyesuaian fisik, barang rusak, atau koreksi inventaris.</p>
         </div>
-        
+
         <div class="form-container">
             <form method="POST" action="">
                 <div class="form-row">
@@ -320,7 +351,7 @@ $sayurans = $conn->query("SELECT id, kode_sayuran, nama_sayuran FROM sayuran WHE
                         </select>
                     </div>
                 </div>
-                
+
                 <div class="form-row">
                     <div class="form-group">
                         <label for="tipe_update">Tipe Update *</label>
@@ -333,19 +364,19 @@ $sayurans = $conn->query("SELECT id, kode_sayuran, nama_sayuran FROM sayuran WHE
                         </select>
                     </div>
                 </div>
-                
+
                 <div class="form-row">
                     <div class="form-group">
                         <label for="jumlah_perubahan">Jumlah Perubahan (Unit) *</label>
                         <input type="number" id="jumlah_perubahan" name="jumlah_perubahan" step="0.01" required>
                     </div>
                 </div>
-                
+
                 <div class="form-group">
                     <label for="alasan">Alasan/Keterangan *</label>
                     <textarea id="alasan" name="alasan" rows="4" required></textarea>
                 </div>
-                
+
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary">Simpan Update</button>
                     <a href="daftar_stok.php" class="btn btn-secondary">Batal</a>
@@ -354,4 +385,5 @@ $sayurans = $conn->query("SELECT id, kode_sayuran, nama_sayuran FROM sayuran WHE
         </div>
     </div>
 </body>
+
 </html>

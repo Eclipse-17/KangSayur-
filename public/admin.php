@@ -84,15 +84,15 @@ $alert = get_alert();
 <body>
   <header class="site-header">
     <div class="header-inner">
-      <div class="logo-icons">🥔 🌽 🍅 🥕 🥬</div>
-      <h1 class="brand">Kang<span>Sayur</span> <span class="role-badge">Admin</span></h1>
+      <h1 class="brand">Kang<span>Sayur</span></h1>
       <form method="post" action="../php/logout.php" style="display:inline">
         <button class="logout-btn" title="Logout">⏻</button>
       </form>
     </div>
   </header>
 
-  <main class="center-wrap dashboard-wrap">
+
+  <main class="dashboard-wrap">
     <section class="dashboard">
       <div class="greeting">
         <p class="hello">Halo,</p>

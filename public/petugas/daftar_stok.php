@@ -8,9 +8,19 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'petugas_stok') {
 }
 
 // Get all stok with sayuran info
-$query = "SELECT s.*, k.nama_kategori, 
-          (SELECT SUM(jumlah_stok) FROM stok_sayuran WHERE sayuran_id = s.id AND status = 'tersedia') as stok_tersedia,
-          (SELECT MIN(tanggal_masuk) FROM stok_sayuran WHERE sayuran_id = s.id AND status = 'tersedia') as tanggal_masuk_terlama
+$query = "SELECT s.*, k.nama_kategori,
+          (SELECT SUM(st.jumlah_stok)
+           FROM stok_sayuran st
+           WHERE st.sayuran_id = s.id
+             AND st.status = 'tersedia'
+             AND (st.tanggal_kadaluarsa IS NULL OR st.tanggal_kadaluarsa >= CURDATE())
+          ) as stok_tersedia,
+          (SELECT MIN(st2.tanggal_masuk)
+           FROM stok_sayuran st2
+           WHERE st2.sayuran_id = s.id
+             AND st2.status = 'tersedia'
+             AND (st2.tanggal_kadaluarsa IS NULL OR st2.tanggal_kadaluarsa >= CURDATE())
+          ) as tanggal_masuk_terlama
           FROM sayuran s
           JOIN kategori_sayuran k ON s.kategori_id = k.id
           WHERE s.status = 'aktif'
