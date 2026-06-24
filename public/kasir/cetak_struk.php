@@ -71,7 +71,7 @@ $conn->query($printed_query);
 <body>
 <div class="receipt-wrap">
     <div class="print-actions">
-        <a class="btn btn-secondary" style="text-decoration:none;" href="riwayat_transaksi.php">← Kembali</a>
+        <a class="btn btn-secondary" style="text-decoration:none;" href="penjualan_baru.php">← Kembali</a>
         <button class="btn btn-primary" onclick="window.print()">🖨️ Cetak</button>
     </div>
 

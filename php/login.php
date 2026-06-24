@@ -6,9 +6,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = escape_string($_POST['username']);
     $password = $_POST['password'];
     
-    // Query untuk check user
+    // Query untuk check user (status nonaktif wajib tidak boleh login)
     $query = "SELECT * FROM users WHERE username = '$username' AND status = 'aktif'";
     $result = $conn->query($query);
+
+    // Jika memang ditemukan user tapi status nonaktif, tampilkan pesan yang jelas.
+    if ($result && $result->num_rows === 0) {
+        $q2 = $conn->query("SELECT id FROM users WHERE username = '$username' LIMIT 1");
+        if ($q2 && $q2->num_rows > 0) {
+            $error = "Akun nonaktif. Silakan hubungi admin.";
+        }
+    }
+
     
     if ($result->num_rows > 0) {
         $user = $result->fetch_assoc();

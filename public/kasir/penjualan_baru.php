@@ -26,7 +26,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Ambil batch FIFO yang paling tua untuk sayuran ini
         // (harga_satuan untuk item diambil dari harga_perolehan batch)
-        $sql = "SELECT id, jumlah_stok, harga_perolehan, tanggal_masuk
+                // Pastikan sayuran masih aktif dan kategorinya juga aktif (kategori nonaktif tidak boleh dijual)
+                $cek_kategori = $conn->query("SELECT 1
+                    FROM sayuran s
+                    JOIN kategori_sayuran k ON k.id = s.kategori_id
+                    WHERE s.id = '$sayuran_id' AND s.status='aktif' AND k.status='aktif'
+                    LIMIT 1");
+                if (!$cek_kategori || $cek_kategori->num_rows === 0) {
+                    set_alert('Sayuran tidak tersedia untuk dijual (status/kategori nonaktif).', 'error');
+                    header('Location: penjualan_baru.php');
+                    exit;
+                }
+
+                $sql = "SELECT id, jumlah_stok, harga_perolehan, tanggal_masuk
                 FROM stok_sayuran
                 WHERE sayuran_id = '$sayuran_id'
                   AND status = 'tersedia'
@@ -301,8 +313,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// load sayuran aktif untuk picker
-$sayurans = $conn->query("SELECT id, kode_sayuran, nama_sayuran, harga_jual, satuan FROM sayuran WHERE status = 'aktif' ORDER BY nama_sayuran ASC");
+// load sayuran aktif untuk picker (hanya sayuran yang aktif dan kategori aktif)
+$sayurans = $conn->query("SELECT s.id, s.kode_sayuran, s.nama_sayuran, s.harga_jual, s.satuan
+                           FROM sayuran s
+                           JOIN kategori_sayuran k ON k.id = s.kategori_id
+                           WHERE s.status = 'aktif' AND k.status = 'aktif'
+                           ORDER BY s.nama_sayuran ASC");
+
 
 $cart = $_SESSION['kasir_cart'];
 $cart_items = array_values($cart);

@@ -32,6 +32,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && ($action == 'add' || $action == 'edi
                  deskripsi = '$deskripsi', status = '$status' WHERE id = '$id'";
         
         if ($conn->query($query)) {
+            // Cascade: jika kategori di-nonaktifkan, sayuran di dalamnya ikut nonaktif; sebaliknya saat kategori aktif.
+            $new_sayuran_status = ($status === 'nonaktif') ? 'nonaktif' : 'aktif';
+            $conn->query("UPDATE sayuran SET status = '$new_sayuran_status' WHERE kategori_id = '$id'");
+
             set_alert("Kategori berhasil diperbarui", 'success');
             header('Location: kategori.php');
             exit;

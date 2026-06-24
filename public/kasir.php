@@ -86,7 +86,7 @@ $hariIni = date('l, j F Y');
                 <span class="text-base font-bold text-gray-800"><?php echo format_rupiah((float)$totalOmset); ?></span>
             </div>
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                <span class="text-xs font-semibold text-gray-400 block mb-1">Transaksi Hari Ini</span>
+                <span class="text-xs font-semibold text-gray-400 block mb-1">Transaksi</span>
                 <span class="text-base font-bold text-gray-800"><?php echo (int)$transToday; ?> Nota</span>
             </div>
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 col-span-2 sm:col-span-1">
